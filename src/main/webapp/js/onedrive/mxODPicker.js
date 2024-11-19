@@ -1,4 +1,5 @@
-function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRecentList, addToRecent, pickedFileCallback, errorFn, foldersOnly, backFn, withSubmitBtn, withThumbnail, initFolderPath)
+function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRecentList, addToRecent, pickedFileCallback,
+	errorFn, foldersOnly, backFn, withSubmitBtn, withThumbnail, initFolderPath, acceptAllFiles)
 {
 	var previewHtml = '';
 	
@@ -65,17 +66,18 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 				'<div class="searchBar" style="display:none"><input type="search" id="odSearchBox" placeholder="' + mxUtils.htmlEntities(mxResources.get('search')) + '"></div>' +
 				'<div class="odFilesBreadcrumb"></div>' +
 				'<div id="refreshOD" class="odRefreshButton">' +
-					'<img src="/images/update32.png" width="16" height="16" title="' + mxUtils.htmlEntities(mxResources.get('refresh')) + 'Refresh" border="0"/>' +
+					'<img class="geAdaptiveAsset" src="/images/update32.png" width="16" height="16" title="' + mxUtils.htmlEntities(mxResources.get('refresh')) + 'Refresh" border="0"/>' +
 				'</div>' +
 				'<div class="odFilesList"></div>' +
 			'</div>' +
 			previewHtml +
 			(backFn? '<div id="odBackBtn" class="odLinkBtn">&lt; ' + mxUtils.htmlEntities(mxResources.get('back')) + '</div>' : '') +
-			(withSubmitBtn? '<button id="odSubmitBtn" class="odSubmitBtn">' + mxUtils.htmlEntities(mxResources.get(foldersOnly? 'save' : 'open')) + '</button>' : '');
+			(withSubmitBtn? '<button id="odSubmitBtn" class="odSubmitBtn">' + mxUtils.htmlEntities(mxResources.get(foldersOnly? 'select' : 'open')) + '</button>' : '');
 	
 	var isDarkMode = window.Editor != null && Editor.isDarkMode != null && Editor.isDarkMode();
 	
 	var css = 
+		'.odCatsList *, .odFilesSec * { user-select: none; }' +
 		'.odCatsList {' +
 		'	box-sizing: border-box;' + 
 		'	position:absolute;' + 
@@ -138,6 +140,10 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 		'	background-color:#ddd;' + 
 		'	border-radius:50%;' + 
 		'}' + 
+		// '.odRefreshButton:hover {' + 
+		// '	background-color:#ddd;' + 
+		// '	border-radius:50%;' + 
+		// '}' + 
 		'.odRefreshButton:active {' + 
 		'	opacity:0.7;' + 
 		'}' + 
@@ -308,7 +314,12 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 							cnt = 'data:image/png;base64,' + Editor.base64Encode(cnt);
 							cnt = Editor.extractGraphModelFromPng(cnt);
 						}
-						
+						else if (/\.pdf$/.test(file.name))
+						{
+							cnt = 'data:application/pdf;base64,' + Editor.base64Encode(cnt);
+							cnt = Editor.extractGraphModelFromPdf(cnt);
+						}
+
 						var doc = mxUtils.parseXml(cnt);
 
 						var node = (doc.documentElement.nodeName == 'mxlibrary') ?
@@ -328,7 +339,7 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 			}
 		};
 		
-		if (isPng && req.overrideMimeType)
+		if ((isPng || /\.pdf$/.test(file.name)) && req.overrideMimeType)
 		{
 			req.overrideMimeType('text/plain; charset=x-user-defined');
 		}
@@ -369,12 +380,12 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 		}
 		
 		prevDiv.style.background = 'transparent';
-		prevDiv.innerHTML = '';
+		prevDiv.innerText = '';
 		
 		function showRenderMsg(msg)
 		{
 			prevDiv.style.background = 'transparent';
-			prevDiv.innerHTML = '';	
+			prevDiv.innerText = '';	
 
 			var status = document.createElement('div');
 			status.className = 'odPreviewStatus';
@@ -440,7 +451,7 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 		
 		if (bcDiv == null) return;
 		
-		bcDiv.innerHTML = '';
+		bcDiv.innerText = '';
 		
 		for (var i = 0; i < breadcrumb.length - 1; i++)
 		{
@@ -468,7 +479,8 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 		{
 			var curr = document.createElement('span');
 			curr.innerHTML = mxUtils.htmlEntities((breadcrumb.length == 1) ?
-					mxResources.get('officeSelDiag') : (breadcrumb[breadcrumb.length - 1].name || mxResources.get('home')));
+					mxResources.get(foldersOnly ? 'selectFolder' : 'officeSelDiag') :
+						(breadcrumb[breadcrumb.length - 1].name || mxResources.get('home')));
 			bcDiv.appendChild(curr);
 		}
 	};
@@ -513,7 +525,7 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 
 		if (prevDiv != null)
 		{
-			prevDiv.innerHTML = '';
+			prevDiv.innerText = '';
 			prevDiv.style.top = '50%';
 		}
 
@@ -546,7 +558,7 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 						
 				if (isSharepointSites)
 				{
-					item.folder = true;
+					item.folder = isSharepointSites == 2? {isRoot: true} : true;
 				}
 				
 				var isFolder = item.folder !=  null;
@@ -581,7 +593,11 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 					currentItem.className += ' odRowSelected';
 					selectedFile = item;
 					selectedDriveId = driveId;
-					previewFn(selectedFile);
+					
+					if (!acceptAllFiles)
+					{
+						previewFn(selectedFile);
+					}
 				}
 				
 				(function(item2, row2)
@@ -598,7 +614,10 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 							selectedFile = item2;
 							selectedDriveId = driveId;
 							
-							previewFn(selectedFile);
+							if (!acceptAllFiles)
+							{
+								previewFn(selectedFile);
+							}
 						}
 					});
 				})(item, row);
@@ -629,7 +648,7 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 		}, 20000); //20 sec timeout
 		
 		var filesList = _$('.odFilesList');
-        filesList.innerHTML = '';
+        filesList.innerText = '';
         spinner.spin(filesList);
         
         var url;
@@ -691,49 +710,99 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
         	url += (url.indexOf('?') > 0 ? '&' : '?') + 'select=id,name,description,parentReference,file,createdBy,lastModifiedBy,lastModifiedDateTime,size,folder,remoteItem,@microsoft.graph.downloadUrl';
         }
         
-		getODFilesList(url, function(resp) 
-		{
-			if (!acceptRequest) return;
-			clearTimeout(timeoutThread);
-			
-			var list = resp.value || [];
+		var potentialDrawioFiles = [];
 
-			var potentialDrawioFiles = isSharepointSites? list : [];
-			
-			for (var i = 0; !isSharepointSites && i < list.length; i++)
+		function getChunk(nextUrl)
+		{
+			getODFilesList(nextUrl? nextUrl : url, function(resp) 
 			{
-				var file = list[i];
-				var mimeType = file.file? file.file.mimeType : null;
+				if (!acceptRequest) return;
 				
-				if (file.folder || mimeType == 'text/html' || mimeType == 'text/xml' || mimeType == 'application/xml' || mimeType == 'image/png' 
-					|| /\.svg$/.test(file.name) || /\.html$/.test(file.name) || /\.xml$/.test(file.name) || /\.png$/.test(file.name)
-					|| /\.drawio$/.test(file.name) || /\.drawiolib$/.test(file.name))
-				{
-					potentialDrawioFiles.push(file);
-				}
-			}
-			
-			renderList(potentialDrawioFiles);
-		}, 
-		function(err)
-		{
-			if (!acceptRequest) return;
-			clearTimeout(timeoutThread);
-			
-			var errMsg = null;
-			
-			try
-			{
-				errMsg = JSON.parse(err.responseText).error.message;
-			}
-			catch(e){} //ignore errors
-			
-			errorFn(mxResources.get('errorFetchingFolder', null, 'Error fetching folder items') +
-				(errMsg != null? ' (' + errMsg + ')' : ''));
+				var list = resp.value || [];
 
-			requestInProgress = false;
-			spinner.stop();
-		});
+				if (acceptAllFiles || isSharepointSites)
+				{
+					Array.prototype.push.apply(potentialDrawioFiles, list);
+				}
+				else
+				{
+					for (var i = 0; i < list.length; i++)
+					{
+						var file = list[i];
+						var mimeType = file.file? file.file.mimeType : null;
+						
+						if (file.folder || mimeType == 'text/html' || mimeType == 'text/xml' || mimeType == 'application/xml' || mimeType == 'image/png' 
+							|| /\.svg$/.test(file.name) || /\.html$/.test(file.name) || /\.xml$/.test(file.name) || /\.png$/.test(file.name)
+							|| /\.drawio$/.test(file.name) || /\.drawiolib$/.test(file.name) || /\.pdf$/.test(file.name))
+						{
+							potentialDrawioFiles.push(file);
+						}
+					}
+
+					// Sorts entries by type and name
+					potentialDrawioFiles.sort(function(a, b)
+					{
+						var nameA = a.name.toLowerCase();
+						var nameB = b.name.toLowerCase();
+
+						if (a.folder && !b.folder)
+						{
+							return -1;
+						}
+						else if (!a.folder && b.folder)
+						{
+							return 1;
+						}
+						else
+						{
+							if (nameA < nameB)
+							{
+								return -1;
+							}
+							else if (nameA > nameB)
+							{
+								return 1;
+							}
+							else
+							{
+								return 0;
+							}
+						}
+					});
+				}
+
+				if (resp['@odata.nextLink'] && potentialDrawioFiles.length < 1000) // TODO Support dynamic paging instead of 1000 limit
+				{
+					getChunk(resp['@odata.nextLink']);
+				}
+				else
+				{
+					clearTimeout(timeoutThread);
+					renderList(potentialDrawioFiles);
+				}
+			}, 
+			function(err)
+			{
+				if (!acceptRequest) return;
+				clearTimeout(timeoutThread);
+				
+				var errMsg = null;
+				
+				try
+				{
+					errMsg = JSON.parse(err.responseText).error.message;
+				}
+				catch(e){} //ignore errors
+				
+				errorFn(mxResources.get('errorFetchingFolder', null, 'Error fetching folder items') +
+					(errMsg != null? ' (' + errMsg + ')' : ''));
+
+				requestInProgress = false;
+				spinner.stop();
+			}, nextUrl != null);
+		};
+
+		getChunk();
 	};
 	
 	this.getSelectedItem = function()
@@ -839,7 +908,10 @@ function mxODPicker(container, previewFn, getODFilesList, getODFileInfo, getRece
 		if (lastFolderArgs != null)
 		{
 			previewFn(null);
+			
+			var temp = breadcrumb.slice();
 			fillFolderFiles.apply(this, lastFolderArgs);
+			breadcrumb = temp;
 		}
 	};
 	
